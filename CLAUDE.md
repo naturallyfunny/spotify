@@ -5,14 +5,24 @@ Digunakan oleh `go.avagenc.com/ava` sebagai dependency langsung (modular monolit
 
 ## Status
 
-Sedang dalam migrasi dari microservice (HTTP server + Lambda) ke pure library.
-File `main.go`, `handlers/`, dan dependency Lambda akan dihapus.
-Target struktur: semua public API di root package `package spotify`.
+Layer microservice sudah dihapus (main.go, handlers/, Lambda artifacts).
+Restrukturisasi package belum selesai — isi `spotify/` perlu dinaikkan ke root,
+dan `db/` perlu dipindah ke `internal/db/`.
 
 ## Struktur
 
+Saat ini:
 ```
-spotify/        root package, semua public API di sini
+spotify/        package spotify (library, player, client) — belum di root
+db/             koneksi PostgreSQL — belum jadi internal
+migrations/     SQL files
+```
+
+Target:
+```
+spotify.go      root package, public API (Client, konstruktor)
+library.go
+player.go
 internal/db/    koneksi PostgreSQL, tidak diekspos keluar
 migrations/     SQL files, di-embed ke binary via //go:embed
 ```
