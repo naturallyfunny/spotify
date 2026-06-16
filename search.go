@@ -85,12 +85,26 @@ func (c *Client) Recommendations(ctx context.Context, userID string, genres []st
 	}
 	tracks := make([]Track, 0, len(results.Tracks))
 	for _, t := range results.Tracks {
-		tracks = append(tracks, trackFrom(spotify.FullTrack{SimpleTrack: t}))
+		tracks = append(tracks, trackFromSimple(t))
 	}
 	return tracks, nil
 }
 
 func trackFrom(t spotify.FullTrack) Track {
+	artists := make([]string, len(t.Artists))
+	for i, a := range t.Artists {
+		artists[i] = a.Name
+	}
+	return Track{
+		ID:      t.ID.String(),
+		Name:    t.Name,
+		Artists: artists,
+		URI:     string(t.URI),
+		URL:     t.ExternalURLs["spotify"],
+	}
+}
+
+func trackFromSimple(t spotify.SimpleTrack) Track {
 	artists := make([]string, len(t.Artists))
 	for i, a := range t.Artists {
 		artists[i] = a.Name

@@ -17,10 +17,11 @@ var migrations embed.FS
 // Store implements spotify.TokenStore backed by PostgreSQL.
 type Store struct {
 	pool *pgxpool.Pool
+	dsn  string
 }
 
-func New(pool *pgxpool.Pool) *Store {
-	return &Store{pool: pool}
+func New(pool *pgxpool.Pool, dsn string) *Store {
+	return &Store{pool: pool, dsn: dsn}
 }
 
 func (s *Store) GetRefreshToken(ctx context.Context, userID string) (string, error) {
@@ -40,9 +41,7 @@ func (s *Store) Migrate() error {
 	if err != nil {
 		return fmt.Errorf("migrations source: %w", err)
 	}
-
-	dsn := "pgx5://" + s.pool.Config().ConnConfig.ConnString()
-	m, err := migrate.NewWithSourceInstance("iofs", src, dsn)
+	m, err := migrate.NewWithSourceInstance("iofs", src, s.dsn)
 	if err != nil {
 		return fmt.Errorf("migrate init: %w", err)
 	}

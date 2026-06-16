@@ -16,7 +16,6 @@ type TokenStore interface {
 }
 
 // Client provides access to Spotify on behalf of a user.
-// It delegates token storage to a TokenStore and API calls to the zmb3 client.
 type Client struct {
 	tokenStore TokenStore
 	auth       *spotifyauth.Authenticator
@@ -56,7 +55,6 @@ type Device struct {
 	Volume   int
 }
 
-// clientFor creates an authenticated zmb3 client for the given user.
 func (c *Client) clientFor(ctx context.Context, userID string) (*spotify.Client, error) {
 	refreshToken, err := c.tokenStore.GetRefreshToken(ctx, userID)
 	if err != nil {
