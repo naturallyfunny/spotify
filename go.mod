@@ -1,4 +1,4 @@
-module go.avagenc.com/spotify
+module go.naturallyfunny.dev/spotify
 
 go 1.25.1
 
