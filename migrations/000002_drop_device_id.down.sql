@@ -1,1 +1,1 @@
-ALTER TABLE "spotify_connect" ADD COLUMN "device_id" text;
+ALTER TABLE "spotify_connect" ADD COLUMN IF NOT EXISTS "device_id" text;
