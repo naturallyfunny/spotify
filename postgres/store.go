@@ -42,6 +42,20 @@ func (s *Store) GetRefreshToken(ctx context.Context, userID string) (string, err
 	return token, nil
 }
 
+// SaveRefreshToken inserts or replaces the refresh token for userID.
+func (s *Store) SaveRefreshToken(ctx context.Context, userID, refreshToken string) error {
+	_, err := s.pool.Exec(ctx,
+		`INSERT INTO spotify_tokens (owner_id, refresh_token)
+		 VALUES ($1, $2)
+		 ON CONFLICT (owner_id) DO UPDATE SET refresh_token = EXCLUDED.refresh_token`,
+		userID, refreshToken,
+	)
+	if err != nil {
+		return fmt.Errorf("save refresh token: %w", err)
+	}
+	return nil
+}
+
 // Migrate runs all pending database migrations.
 func (s *Store) Migrate() error {
 	src, err := iofs.New(migrations, "migrations")
