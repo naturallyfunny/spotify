@@ -5,8 +5,8 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"spotify-api/db"
-	"spotify-api/handlers"
+	"go.avagenc.com/spotify/db"
+	"go.avagenc.com/spotify/handlers"
 
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/awslabs/aws-lambda-go-api-proxy/httpadapter"
@@ -17,7 +17,7 @@ import (
 func main() {
 	// Load .env file if it exists (ignored in Lambda where env vars are set natively)
 	if err := godotenv.Load(); err != nil {
-		log.Println("No .env file found, using system environment variables")
+		log.Println("Info: .env file not found, using system environment variables")
 	}
 
 	// Initialize Database

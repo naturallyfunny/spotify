@@ -1,4 +1,4 @@
-module spotify-api
+module go.avagenc.com/spotify
 
 go 1.25.1
 

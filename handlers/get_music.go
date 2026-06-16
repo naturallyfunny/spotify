@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"spotify-api/db"
-	"spotify-api/spotify"
+	"go.avagenc.com/spotify/db"
+	"go.avagenc.com/spotify/spotify"
 	"sync"
 
 	"go.naturallyfunny.dev/api"
