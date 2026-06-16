@@ -9,6 +9,12 @@ import (
 	"golang.org/x/oauth2"
 )
 
+// TokenStore retrieves Spotify OAuth tokens on behalf of a user.
+// Implement this interface to provide your own storage backend.
+type TokenStore interface {
+	GetRefreshToken(ctx context.Context, userID string) (string, error)
+}
+
 // Client provides access to Spotify on behalf of a user.
 // It delegates token storage to a TokenStore and API calls to the zmb3 client.
 type Client struct {
