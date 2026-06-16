@@ -1,30 +1,35 @@
 # spotify
 
-Module Go `go.avagenc.com/spotify` — library untuk integrasi Spotify Web API.
-Digunakan oleh `go.avagenc.com/ava` sebagai dependency langsung (modular monolith), bukan microservice.
+Module Go `go.naturallyfunny.dev/spotify` — reusable public library untuk integrasi Spotify Web API.
+Dirancang sebagai interface-based library agar dapat dipakai lintas project, tidak terikat ke satu database atau satu aplikasi.
 
 ## Status
 
 Layer microservice sudah dihapus (main.go, handlers/, Lambda artifacts).
-Restrukturisasi package belum selesai — isi `spotify/` perlu dinaikkan ke root,
-dan `db/` perlu dipindah ke `internal/db/`.
+Restrukturisasi package belum selesai:
+- isi `spotify/` perlu dinaikkan ke root
+- `db/` perlu diubah menjadi `postgres/` dengan implementasi `TokenStore`
+- `migrations/` dipindah ke dalam `postgres/`
+- `store.go` (interface `TokenStore`) perlu dibuat di root
 
 ## Struktur
 
 Saat ini:
 ```
 spotify/        package spotify (library, player, client) — belum di root
-db/             koneksi PostgreSQL — belum jadi internal
-migrations/     SQL files
+db/             koneksi PostgreSQL — belum direstrukturisasi
+migrations/     SQL files — belum dipindah ke postgres/
 ```
 
 Target:
 ```
-spotify.go      root package, public API (Client, konstruktor)
+spotify.go      root package, Client dan NewClient(store TokenStore)
 library.go
 player.go
-internal/db/    koneksi PostgreSQL, tidak diekspos keluar
-migrations/     SQL files, di-embed ke binary via //go:embed
+store.go        interface TokenStore { GetRefreshToken(...) }
+postgres/
+  postgres.go   implementasi TokenStore pakai pgxpool
+  migrations/   SQL files, di-embed via //go:embed
 ```
 
 ## Migrations
@@ -35,5 +40,6 @@ Semua statement wajib pakai `IF NOT EXISTS` / `IF EXISTS`. Jangan pernah edit mi
 ## Conventions
 
 - Public API: method pada `spotify.Client`
+- Storage: injeksi via `TokenStore` interface, bukan hardcode ke postgres
 - Tidak ada `pkg/` — flat structure
 - Commit message pakai conventional commits: `feat:`, `fix:`, `chore(migrate):` dst
