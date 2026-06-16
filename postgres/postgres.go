@@ -1,0 +1,55 @@
+package postgres
+
+import (
+	"context"
+	"embed"
+	"fmt"
+
+	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/database/pgx/v5"
+	"github.com/golang-migrate/migrate/v4/source/iofs"
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+//go:embed migrations/*.sql
+var migrations embed.FS
+
+// Store implements spotify.TokenStore backed by PostgreSQL.
+type Store struct {
+	pool *pgxpool.Pool
+}
+
+func New(pool *pgxpool.Pool) *Store {
+	return &Store{pool: pool}
+}
+
+func (s *Store) GetRefreshToken(ctx context.Context, userID string) (string, error) {
+	var token string
+	err := s.pool.QueryRow(ctx,
+		`SELECT refresh_token FROM spotify_connect WHERE owner_id = $1`, userID,
+	).Scan(&token)
+	if err != nil {
+		return "", fmt.Errorf("get refresh token: %w", err)
+	}
+	return token, nil
+}
+
+// Migrate runs all pending database migrations.
+func (s *Store) Migrate() error {
+	src, err := iofs.New(migrations, "migrations")
+	if err != nil {
+		return fmt.Errorf("migrations source: %w", err)
+	}
+
+	dsn := "pgx5://" + s.pool.Config().ConnConfig.ConnString()
+	m, err := migrate.NewWithSourceInstance("iofs", src, dsn)
+	if err != nil {
+		return fmt.Errorf("migrate init: %w", err)
+	}
+	defer m.Close()
+
+	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
+		return fmt.Errorf("migrate up: %w", err)
+	}
+	return nil
+}
