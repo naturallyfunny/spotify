@@ -7,7 +7,7 @@ Dirancang sebagai interface-based library agar dapat dipakai lintas project, tid
 
 ```
 client.go       Client, TokenStore interface, tipe Track/Playlist/Device
-search.go       SearchTracks, SearchPlaylists, UserPlaylists, PlaylistTracks, Recommendations
+search.go       SearchTracks, SearchPlaylists, UserPlaylists, PlaylistTracks
 player.go       Devices, Play, Pause, Resume, SetVolume
 postgres/
   store.go      implementasi TokenStore di atas pgxpool, Migrate()

@@ -74,37 +74,7 @@ func (c *Client) PlaylistTracks(ctx context.Context, userID, playlistID string) 
 	return tracks, nil
 }
 
-func (c *Client) Recommendations(ctx context.Context, userID string, genres []string) ([]Track, error) {
-	sc, err := c.clientFor(ctx, userID)
-	if err != nil {
-		return nil, err
-	}
-	results, err := sc.GetRecommendations(ctx, spotify.Seeds{Genres: genres}, nil, spotify.Limit(20))
-	if err != nil {
-		return nil, fmt.Errorf("recommendations: %w", err)
-	}
-	tracks := make([]Track, 0, len(results.Tracks))
-	for _, t := range results.Tracks {
-		tracks = append(tracks, trackFromSimple(t))
-	}
-	return tracks, nil
-}
-
 func trackFrom(t spotify.FullTrack) Track {
-	artists := make([]string, len(t.Artists))
-	for i, a := range t.Artists {
-		artists[i] = a.Name
-	}
-	return Track{
-		ID:      t.ID.String(),
-		Name:    t.Name,
-		Artists: artists,
-		URI:     string(t.URI),
-		URL:     t.ExternalURLs["spotify"],
-	}
-}
-
-func trackFromSimple(t spotify.SimpleTrack) Track {
 	artists := make([]string, len(t.Artists))
 	for i, a := range t.Artists {
 		artists[i] = a.Name
