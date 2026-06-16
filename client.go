@@ -2,6 +2,7 @@ package spotify
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/zmb3/spotify/v2"
@@ -9,8 +10,15 @@ import (
 	"golang.org/x/oauth2"
 )
 
+// ErrNotConnected indicates the user has no stored Spotify credentials,
+// i.e. they have not completed the OAuth connect flow. TokenStore
+// implementations should return this from GetRefreshToken when no token
+// exists, so consumers can route the user into the login flow.
+var ErrNotConnected = errors.New("spotify: user not connected")
+
 // TokenStore retrieves Spotify OAuth tokens on behalf of a user.
 // Implement this interface to provide your own storage backend.
+// GetRefreshToken must return ErrNotConnected when no token exists for userID.
 type TokenStore interface {
 	GetRefreshToken(ctx context.Context, userID string) (string, error)
 }

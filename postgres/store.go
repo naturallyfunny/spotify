@@ -3,12 +3,16 @@ package postgres
 import (
 	"context"
 	"embed"
+	"errors"
 	"fmt"
 
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/pgx/v5"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"go.naturallyfunny.dev/spotify"
 )
 
 //go:embed migrations/*.sql
@@ -27,9 +31,12 @@ func New(pool *pgxpool.Pool, dsn string) *Store {
 func (s *Store) GetRefreshToken(ctx context.Context, userID string) (string, error) {
 	var token string
 	err := s.pool.QueryRow(ctx,
-		`SELECT refresh_token FROM spotify_connect WHERE owner_id = $1`, userID,
+		`SELECT refresh_token FROM spotify_tokens WHERE owner_id = $1`, userID,
 	).Scan(&token)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", spotify.ErrNotConnected
+		}
 		return "", fmt.Errorf("get refresh token: %w", err)
 	}
 	return token, nil
