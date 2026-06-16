@@ -3,33 +3,29 @@
 Module Go `go.naturallyfunny.dev/spotify` — reusable public library untuk integrasi Spotify Web API.
 Dirancang sebagai interface-based library agar dapat dipakai lintas project, tidak terikat ke satu database atau satu aplikasi.
 
-## Status
-
-Layer microservice sudah dihapus (main.go, handlers/, Lambda artifacts).
-Restrukturisasi package belum selesai:
-- isi `spotify/` perlu dinaikkan ke root
-- `db/` perlu diubah menjadi `postgres/` dengan implementasi `TokenStore`
-- `migrations/` dipindah ke dalam `postgres/`
-- `store.go` (interface `TokenStore`) perlu dibuat di root
-
 ## Struktur
 
-Saat ini:
 ```
-spotify/        package spotify (library, player, client) — belum di root
-db/             koneksi PostgreSQL — belum direstrukturisasi
-migrations/     SQL files — belum dipindah ke postgres/
+client.go       Client, TokenStore interface, tipe Track/Playlist/Device
+search.go       SearchTracks, SearchPlaylists, UserPlaylists, PlaylistTracks, Recommendations
+player.go       Devices, Play, Pause, Resume, SetVolume
+postgres/
+  store.go      implementasi TokenStore di atas pgxpool, Migrate()
+  migrations/   SQL files, di-embed via //go:embed
 ```
 
-Target:
-```
-spotify.go      root package, Client dan NewClient(store TokenStore)
-library.go
-player.go
-store.go        interface TokenStore { GetRefreshToken(...) }
-postgres/
-  postgres.go   implementasi TokenStore pakai pgxpool
-  migrations/   SQL files, di-embed via //go:embed
+## Cara Pakai
+
+```go
+auth := spotifyauth.New(
+    spotifyauth.WithClientID(clientID),
+    spotifyauth.WithClientSecret(clientSecret),
+)
+store := postgres.New(pool, dsn)
+client := spotify.New(store, auth)
+
+tracks, err := client.SearchTracks(ctx, userID, "Queen")
+err = client.Play(ctx, userID, deviceID, trackURI)
 ```
 
 ## Migrations
@@ -39,7 +35,7 @@ Semua statement wajib pakai `IF NOT EXISTS` / `IF EXISTS`. Jangan pernah edit mi
 
 ## Conventions
 
-- Public API: method pada `spotify.Client`
-- Storage: injeksi via `TokenStore` interface, bukan hardcode ke postgres
+- `TokenStore` interface didefinisikan di `client.go` — consumer defined interface
+- `postgres.New(pool, dsn)` — DSN disimpan di Store untuk kebutuhan Migrate()
 - Tidak ada `pkg/` — flat structure
 - Commit message pakai conventional commits: `feat:`, `fix:`, `chore(migrate):` dst
