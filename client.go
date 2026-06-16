@@ -22,6 +22,13 @@ type Client struct {
 	auth       *spotifyauth.Authenticator
 }
 
+func New(tokenStore TokenStore, auth *spotifyauth.Authenticator) *Client {
+	return &Client{
+		tokenStore: tokenStore,
+		auth:       auth,
+	}
+}
+
 // Track represents a Spotify track.
 type Track struct {
 	ID      string
@@ -47,16 +54,6 @@ type Device struct {
 	Type     string
 	IsActive bool
 	Volume   int
-}
-
-func New(tokenStore TokenStore, clientID, clientSecret string) *Client {
-	return &Client{
-		tokenStore: tokenStore,
-		auth: spotifyauth.New(
-			spotifyauth.WithClientID(clientID),
-			spotifyauth.WithClientSecret(clientSecret),
-		),
-	}
 }
 
 // clientFor creates an authenticated zmb3 client for the given user.
