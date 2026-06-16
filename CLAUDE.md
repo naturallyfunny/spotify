@@ -14,9 +14,11 @@ service high-throughput** — beberapa "kelemahan" adalah keputusan sadar, bukan
 ## Struktur
 
 ```
-client.go       Client, TokenStore interface, tipe Track/Playlist/Device
-search.go       SearchTracks, SearchPlaylists, UserPlaylists, PlaylistTracks
-player.go       Devices, Play, Pause, Resume, SetVolume
+client.go       Client, TokenStore interface, tipe Track/Playlist/Device/Playback, OAuth (AuthURL/Exchange),
+                error mapping lintas-fitur (ErrRateLimited, wrapError, sentinelFor)
+search.go       SearchTracks, SearchPlaylists, UserPlaylists, PlaylistTracks (semua dengan Market=from_token)
+player.go       Devices, CurrentPlayback, Play, Pause, Resume, Next, Previous, Seek, SetVolume,
+                sentinel khusus playback (ErrNoActiveDevice, ErrPremiumRequired)
 postgres/
   store.go      implementasi TokenStore di atas pgxpool, Migrate()
   migrations/   SQL files, di-embed via //go:embed

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/zmb3/spotify/v2"
@@ -110,6 +111,20 @@ type Device struct {
 	Volume   int
 }
 
+// Playback describes what a user is currently listening to. Track is nil when
+// nothing identifiable is loaded (e.g. an ad or a podcast episode), and
+// ContextURI/ContextType are empty when playback is not driven by an album,
+// playlist, or artist. CurrentPlayback returns a nil *Playback when no device
+// is active at all.
+type Playback struct {
+	Track       *Track
+	Device      Device
+	IsPlaying   bool
+	ProgressMs  int
+	ContextURI  string // URI of the album/playlist/artist driving playback, if any
+	ContextType string // "album", "playlist", or "artist"; empty if none
+}
+
 // AuthURL returns the Spotify Accounts authorization URL the user must visit
 // to grant access. state is handed to Spotify and returned verbatim on the
 // callback; consumers use it to correlate the callback with a user and to
@@ -170,4 +185,48 @@ func (c *Client) clientFor(ctx context.Context, userID string) (*spotify.Client,
 	token := &oauth2.Token{RefreshToken: refreshToken}
 	httpClient := c.auth.Client(ctx, token)
 	return spotify.New(httpClient), nil
+}
+
+// ErrRateLimited means Spotify is throttling the application (HTTP 429). It can
+// surface from any call, so it lives here rather than with a single feature.
+// Back off and retry. Match it with errors.Is.
+var ErrRateLimited = errors.New("spotify: rate limited")
+
+// wrapError annotates err with the operation name and, when it carries a
+// recognizable Spotify API error, joins one of the package sentinels so callers
+// can branch with errors.Is. The original error stays in the chain either way.
+// It returns nil when err is nil so call sites can wrap unconditionally. Every
+// feature routes its API errors through here.
+func wrapError(op string, err error) error {
+	if err == nil {
+		return nil
+	}
+	if sentinel := sentinelFor(err); sentinel != nil {
+		return fmt.Errorf("%s: %w: %w", op, sentinel, err)
+	}
+	return fmt.Errorf("%s: %w", op, err)
+}
+
+// sentinelFor maps a Spotify API error to a package sentinel, or returns nil
+// when none applies. Spotify encodes the precise cause in a "reason" field that
+// zmb3 discards, so for 403/404 we disambiguate on the message text and accept
+// that an unrecognized message falls through to no sentinel.
+func sentinelFor(err error) error {
+	var apiErr spotify.Error
+	if !errors.As(err, &apiErr) {
+		return nil
+	}
+	switch apiErr.Status {
+	case http.StatusNotFound:
+		if strings.Contains(apiErr.Message, "No active device") {
+			return ErrNoActiveDevice
+		}
+	case http.StatusForbidden:
+		if strings.Contains(strings.ToLower(apiErr.Message), "premium") {
+			return ErrPremiumRequired
+		}
+	case http.StatusTooManyRequests:
+		return ErrRateLimited
+	}
+	return nil
 }

@@ -2,9 +2,11 @@ package spotify
 
 import (
 	"errors"
+	"fmt"
 	"reflect"
 	"testing"
 
+	"github.com/zmb3/spotify/v2"
 	"golang.org/x/oauth2"
 )
 
@@ -121,4 +123,95 @@ func TestScopeErrorWrapsSentinel(t *testing.T) {
 	if !reflect.DeepEqual(se.Missing, []string{"b", "c"}) {
 		t.Errorf("se.Missing = %v, want [b c]", se.Missing)
 	}
+}
+
+func TestSentinelFor(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want error
+	}{
+		{
+			name: "404 no active device",
+			err:  spotify.Error{Status: 404, Message: "Player command failed: No active device found"},
+			want: ErrNoActiveDevice,
+		},
+		{
+			name: "404 other reason is not mapped",
+			err:  spotify.Error{Status: 404, Message: "Not found"},
+			want: nil,
+		},
+		{
+			name: "403 premium required",
+			err:  spotify.Error{Status: 403, Message: "Player command failed: Premium required"},
+			want: ErrPremiumRequired,
+		},
+		{
+			name: "403 other reason is not mapped",
+			err:  spotify.Error{Status: 403, Message: "Forbidden"},
+			want: nil,
+		},
+		{
+			name: "429 rate limited",
+			err:  spotify.Error{Status: 429, Message: "API rate limit exceeded"},
+			want: ErrRateLimited,
+		},
+		{
+			name: "unrecognized status",
+			err:  spotify.Error{Status: 500, Message: "Internal server error"},
+			want: nil,
+		},
+		{
+			name: "non-API error",
+			err:  errors.New("boom"),
+			want: nil,
+		},
+		{
+			name: "wrapped API error is still matched",
+			err:  fmt.Errorf("play: %w", spotify.Error{Status: 429, Message: "slow down"}),
+			want: ErrRateLimited,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := sentinelFor(tt.err); got != tt.want {
+				t.Errorf("sentinelFor() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestWrapError(t *testing.T) {
+	t.Run("nil passes through", func(t *testing.T) {
+		if got := wrapError("play", nil); got != nil {
+			t.Errorf("wrapError(nil) = %v, want nil", got)
+		}
+	})
+
+	t.Run("joins sentinel and keeps original in the chain", func(t *testing.T) {
+		api := spotify.Error{Status: 404, Message: "Player command failed: No active device found"}
+		err := wrapError("play", api)
+
+		if !errors.Is(err, ErrNoActiveDevice) {
+			t.Errorf("errors.Is(err, ErrNoActiveDevice) = false, want true")
+		}
+		var apiErr spotify.Error
+		if !errors.As(err, &apiErr) {
+			t.Errorf("errors.As(err, *spotify.Error) = false, want true")
+		}
+	})
+
+	t.Run("plain error is annotated without a sentinel", func(t *testing.T) {
+		base := errors.New("boom")
+		err := wrapError("seek", base)
+
+		if !errors.Is(err, base) {
+			t.Errorf("errors.Is(err, base) = false, want true")
+		}
+		for _, sentinel := range []error{ErrNoActiveDevice, ErrPremiumRequired, ErrRateLimited} {
+			if errors.Is(err, sentinel) {
+				t.Errorf("errors.Is(err, %v) = true, want false", sentinel)
+			}
+		}
+	})
 }

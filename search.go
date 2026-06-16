@@ -2,7 +2,6 @@ package spotify
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/zmb3/spotify/v2"
 )
@@ -12,9 +11,11 @@ func (c *Client) SearchTracks(ctx context.Context, userID, query string) ([]Trac
 	if err != nil {
 		return nil, err
 	}
-	results, err := sc.Search(ctx, query, spotify.SearchTypeTrack, spotify.Limit(10))
+	// Market scopes results to tracks playable in the user's region, so a
+	// subsequent Play does not fail on an unplayable track.
+	results, err := sc.Search(ctx, query, spotify.SearchTypeTrack, spotify.Limit(10), spotify.Market(spotify.MarketFromToken))
 	if err != nil {
-		return nil, fmt.Errorf("search tracks: %w", err)
+		return nil, wrapError("search tracks", err)
 	}
 	tracks := make([]Track, 0, len(results.Tracks.Tracks))
 	for _, t := range results.Tracks.Tracks {
@@ -28,9 +29,9 @@ func (c *Client) SearchPlaylists(ctx context.Context, userID, query string) ([]P
 	if err != nil {
 		return nil, err
 	}
-	results, err := sc.Search(ctx, query, spotify.SearchTypePlaylist, spotify.Limit(10))
+	results, err := sc.Search(ctx, query, spotify.SearchTypePlaylist, spotify.Limit(10), spotify.Market(spotify.MarketFromToken))
 	if err != nil {
-		return nil, fmt.Errorf("search playlists: %w", err)
+		return nil, wrapError("search playlists", err)
 	}
 	playlists := make([]Playlist, 0, len(results.Playlists.Playlists))
 	for _, p := range results.Playlists.Playlists {
@@ -46,7 +47,7 @@ func (c *Client) UserPlaylists(ctx context.Context, userID string) ([]Playlist, 
 	}
 	page, err := sc.CurrentUsersPlaylists(ctx, spotify.Limit(20))
 	if err != nil {
-		return nil, fmt.Errorf("user playlists: %w", err)
+		return nil, wrapError("user playlists", err)
 	}
 	playlists := make([]Playlist, 0, len(page.Playlists))
 	for _, p := range page.Playlists {
@@ -60,9 +61,9 @@ func (c *Client) PlaylistTracks(ctx context.Context, userID, playlistID string) 
 	if err != nil {
 		return nil, err
 	}
-	page, err := sc.GetPlaylistItems(ctx, spotify.ID(playlistID), spotify.Limit(50))
+	page, err := sc.GetPlaylistItems(ctx, spotify.ID(playlistID), spotify.Limit(50), spotify.Market(spotify.MarketFromToken))
 	if err != nil {
-		return nil, fmt.Errorf("playlist tracks: %w", err)
+		return nil, wrapError("playlist tracks", err)
 	}
 	tracks := make([]Track, 0, len(page.Items))
 	for _, item := range page.Items {
