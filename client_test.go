@@ -1,10 +1,14 @@
 package spotify
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
 	"net/url"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/zmb3/spotify/v2"
@@ -41,6 +45,102 @@ func TestAuthURLRedirectURI(t *testing.T) {
 			t.Errorf("redirect_uri = %q, want %q", got, override)
 		}
 	})
+}
+
+// mockTokenStore records SaveRefreshToken calls so Connect tests can assert what
+// was persisted, and lets a test force a save failure via saveErr.
+type mockTokenStore struct {
+	saveErr error
+
+	saveCalled bool
+	savedUser  string
+	savedToken string
+}
+
+func (m *mockTokenStore) GetRefreshToken(ctx context.Context, userID string) (string, error) {
+	return "", errors.New("mockTokenStore: GetRefreshToken not expected")
+}
+
+func (m *mockTokenStore) SaveRefreshToken(ctx context.Context, userID, refreshToken string) error {
+	m.saveCalled = true
+	m.savedUser = userID
+	m.savedToken = refreshToken
+	return m.saveErr
+}
+
+// roundTripFunc adapts a function into an http.RoundTripper.
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+// tokenEndpointCtx returns a context whose oauth2 HTTP client answers the token
+// endpoint with the given status and JSON body, so Exchange runs without network.
+func tokenEndpointCtx(status int, body string) context.Context {
+	hc := &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: status,
+			Body:       io.NopCloser(strings.NewReader(body)),
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+		}, nil
+	})}
+	return context.WithValue(context.Background(), oauth2.HTTPClient, hc)
+}
+
+// okTokenBody is a successful token response granting every RequiredScope.
+const okTokenBody = `{"access_token":"access","token_type":"Bearer","refresh_token":"refresh-xyz","expires_in":3600,"scope":"user-modify-playback-state user-read-playback-state playlist-read-private"}`
+
+func newAuthForExchange() *spotifyauth.Authenticator {
+	return spotifyauth.New(
+		spotifyauth.WithClientID("id"),
+		spotifyauth.WithClientSecret("secret"),
+	)
+}
+
+func TestConnect_SavesToken(t *testing.T) {
+	store := &mockTokenStore{}
+	c := New(store, newAuthForExchange())
+
+	ctx := tokenEndpointCtx(http.StatusOK, okTokenBody)
+	if err := c.Connect(ctx, "user-1", "code"); err != nil {
+		t.Fatalf("Connect() error = %v, want nil", err)
+	}
+	if !store.saveCalled {
+		t.Fatal("SaveRefreshToken was not called")
+	}
+	if store.savedUser != "user-1" {
+		t.Errorf("saved userID = %q, want %q", store.savedUser, "user-1")
+	}
+	if store.savedToken != "refresh-xyz" {
+		t.Errorf("saved token = %q, want %q", store.savedToken, "refresh-xyz")
+	}
+}
+
+func TestConnect_ExchangeError(t *testing.T) {
+	store := &mockTokenStore{}
+	c := New(store, newAuthForExchange())
+
+	ctx := tokenEndpointCtx(http.StatusBadRequest, `{"error":"invalid_grant"}`)
+	if err := c.Connect(ctx, "user-1", "bad-code"); err == nil {
+		t.Fatal("Connect() error = nil, want non-nil")
+	}
+	if store.saveCalled {
+		t.Error("SaveRefreshToken was called despite Exchange failure")
+	}
+}
+
+func TestConnect_SaveError(t *testing.T) {
+	saveErr := errors.New("db down")
+	store := &mockTokenStore{saveErr: saveErr}
+	c := New(store, newAuthForExchange())
+
+	ctx := tokenEndpointCtx(http.StatusOK, okTokenBody)
+	err := c.Connect(ctx, "user-1", "code")
+	if !errors.Is(err, saveErr) {
+		t.Fatalf("Connect() error = %v, want it to wrap %v", err, saveErr)
+	}
+	if !store.saveCalled {
+		t.Error("SaveRefreshToken was not called")
+	}
 }
 
 func TestMissingScopes(t *testing.T) {

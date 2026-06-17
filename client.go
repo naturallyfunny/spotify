@@ -183,6 +183,20 @@ func (c *Client) Exchange(ctx context.Context, code string, opts ...AuthOption) 
 	return token.RefreshToken, nil
 }
 
+// Connect completes the OAuth flow for userID: it trades code for tokens via
+// Exchange and persists the resulting refresh token through TokenStore. From the
+// caller's point of view this is atomic — no token is handed back to manage. Use
+// it instead of Exchange + SaveRefreshToken when the consumer has no need for the
+// raw token. If WithRedirectURI was passed to AuthURL, the same value must be
+// passed here (OAuth requires the two to match).
+func (c *Client) Connect(ctx context.Context, userID, code string, opts ...AuthOption) error {
+	refreshToken, err := c.Exchange(ctx, code, opts...)
+	if err != nil {
+		return err
+	}
+	return c.tokenStore.SaveRefreshToken(ctx, userID, refreshToken)
+}
+
 // grantedScopes reads the scopes Spotify actually granted from the token
 // exchange response. Spotify returns them as a space-separated "scope" field,
 // which oauth2 surfaces via Token.Extra. Reflects what the user approved, not
