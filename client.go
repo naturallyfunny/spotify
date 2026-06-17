@@ -125,21 +125,51 @@ type Playback struct {
 	ContextType string // "album", "playlist", or "artist"; empty if none
 }
 
+// AuthOption customizes a single AuthURL/Exchange call. It exists so callers can
+// tweak the OAuth request without this package leaking golang.org/x/oauth2 types.
+type AuthOption func(*authConfig)
+
+type authConfig struct{ params []oauth2.AuthCodeOption }
+
+// WithRedirectURI overrides the redirect_uri for this single call, instead of the
+// one baked into the Authenticator via spotifyauth.WithRedirectURL. Use it when the
+// public callback address is owned by a component in front of this service (e.g. a
+// reverse proxy / API gateway) rather than known at construction time.
+//
+// OAuth requires the redirect_uri sent to Exchange to be identical to the one sent
+// to AuthURL (RFC 6749 §4.1.3), so the caller must thread the same value through
+// both calls — in practice by carrying it in the signed state. The value must also
+// be one of the redirect URIs registered in the Spotify Developer Dashboard.
+func WithRedirectURI(uri string) AuthOption {
+	return func(c *authConfig) {
+		c.params = append(c.params, oauth2.SetAuthURLParam("redirect_uri", uri))
+	}
+}
+
 // AuthURL returns the Spotify Accounts authorization URL the user must visit
 // to grant access. state is handed to Spotify and returned verbatim on the
 // callback; consumers use it to correlate the callback with a user and to
 // guard against CSRF. The redirect URI and scopes are taken from the
-// Authenticator supplied to New.
-func (c *Client) AuthURL(state string) string {
-	return c.auth.AuthURL(state)
+// Authenticator supplied to New, unless overridden with WithRedirectURI.
+func (c *Client) AuthURL(state string, opts ...AuthOption) string {
+	var cfg authConfig
+	for _, o := range opts {
+		o(&cfg)
+	}
+	return c.auth.AuthURL(state, cfg.params...)
 }
 
 // Exchange completes the OAuth flow by trading the authorization code from the
 // Spotify callback for tokens, returning the refresh token to persist via
 // TokenStore.SaveRefreshToken. The code is single-use; a second Exchange with
-// the same code is rejected by Spotify.
-func (c *Client) Exchange(ctx context.Context, code string) (string, error) {
-	token, err := c.auth.Exchange(ctx, code)
+// the same code is rejected by Spotify. If WithRedirectURI was passed to AuthURL,
+// the same value must be passed here (OAuth requires the two to match).
+func (c *Client) Exchange(ctx context.Context, code string, opts ...AuthOption) (string, error) {
+	var cfg authConfig
+	for _, o := range opts {
+		o(&cfg)
+	}
+	token, err := c.auth.Exchange(ctx, code, cfg.params...)
 	if err != nil {
 		return "", fmt.Errorf("exchange code: %w", err)
 	}

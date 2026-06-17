@@ -3,12 +3,45 @@ package spotify
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"reflect"
 	"testing"
 
 	"github.com/zmb3/spotify/v2"
+	spotifyauth "github.com/zmb3/spotify/v2/auth"
 	"golang.org/x/oauth2"
 )
+
+func TestAuthURLRedirectURI(t *testing.T) {
+	const configured = "https://configured.example/callback"
+	auth := spotifyauth.New(
+		spotifyauth.WithClientID("id"),
+		spotifyauth.WithRedirectURL(configured),
+	)
+	c := New(nil, auth)
+
+	redirectOf := func(rawURL string) string {
+		t.Helper()
+		u, err := url.Parse(rawURL)
+		if err != nil {
+			t.Fatalf("parse auth url: %v", err)
+		}
+		return u.Query().Get("redirect_uri")
+	}
+
+	t.Run("no option uses authenticator default", func(t *testing.T) {
+		if got := redirectOf(c.AuthURL("state")); got != configured {
+			t.Errorf("redirect_uri = %q, want %q", got, configured)
+		}
+	})
+
+	t.Run("WithRedirectURI overrides default", func(t *testing.T) {
+		const override = "https://edge.example/spotify/callback"
+		if got := redirectOf(c.AuthURL("state", WithRedirectURI(override))); got != override {
+			t.Errorf("redirect_uri = %q, want %q", got, override)
+		}
+	})
+}
 
 func TestMissingScopes(t *testing.T) {
 	tests := []struct {
